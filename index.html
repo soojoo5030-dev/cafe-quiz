@@ -1,0 +1,199 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>카페 직무 위기 탈출 퀴즈</title>
+  <style>
+    * { box-sizing: border-box; }
+    [hidden] { display: none !important; }
+    body {
+      margin: 0; padding: 24px 16px; background: #f4f7f2;
+      color: #20372e; font-family: system-ui, "맑은 고딕", sans-serif;
+      font-size: 24px; line-height: 1.6; word-break: keep-all;
+      overflow-wrap: anywhere;
+    }
+    main {
+      max-width: 1000px; margin: auto; padding: clamp(18px, 4vw, 40px);
+      background: #fffefa; border: 2px solid #dbe4dc; border-radius: 28px;
+    }
+    h1 { margin: 8px 0 12px; font-size: clamp(32px, 4vw, 44px); line-height: 1.35; }
+    h2 { margin: 24px 0 16px; font-size: 30px; }
+    p { margin: 12px 0; }
+    .tag { margin: 0; color: #42624f; font-weight: 700; }
+    .screen { margin-top: 24px; }
+    video {
+      display: block; width: 100%; max-height: 58vh; aspect-ratio: 16 / 9;
+      background: #18271f; border-radius: 18px; object-fit: contain;
+    }
+    .notice {
+      margin-top: 16px; padding: 20px; border: 2px solid #9b7840;
+      border-radius: 18px; background: #fff4dd; color: #503b16;
+    }
+    .choices { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+    button {
+      max-width: 100%; min-height: 72px; padding: 20px 24px;
+      border: 3px solid #52715f; border-radius: 20px;
+      background: #eef5ee; color: #20372e;
+      font: inherit; font-size: 28px; font-weight: 750; line-height: 1.5;
+      cursor: pointer; white-space: normal; word-break: keep-all;
+      overflow-wrap: anywhere; touch-action: manipulation;
+    }
+    button:hover { background: #dfebdf; }
+    button:focus-visible, [tabindex="-1"]:focus-visible {
+      outline: 4px solid #245bbc; outline-offset: 5px;
+    }
+    .choices button { width: 100%; text-align: left; }
+    .letter { display: block; margin-bottom: 8px; }
+    #feedback { margin-top: 24px; padding: 20px; border-radius: 18px; font-weight: 700; }
+    #feedback:empty { display: none; }
+    #feedback.retry { background: #fff3dc; border: 2px solid #997432; color: #503b16; }
+    #feedback.success { background: #e6f3e9; border: 2px solid #426d50; }
+    #restart { margin-top: 24px; width: 100%; background: #265d45; color: white; }
+    #restart:hover { background: #1c4835; }
+    #play { margin-top: 16px; }
+    @media (max-width: 700px) {
+      body { padding: 12px 8px; }
+      .choices { grid-template-columns: 1fr; }
+      button { padding: 18px; }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <p class="tag">카페 직무 위기 탈출 퀴즈</p>
+    <h1 id="title" tabindex="-1">카페에서 음료를 쏟았어요!</h1>
+    <p id="guide">영상을 보고, 어떻게 행동하면 좋을지 골라보세요.</p>
+
+    <section class="screen" aria-label="상황 영상">
+      <div id="videoHost"></div>
+      <div id="videoError" class="notice" role="status" hidden>
+        <p><strong>영상을 재생할 수 없어요.</strong></p>
+        <p>같은 폴더에 video1.mp4와 video2.mp4가 있는지 확인해주세요.</p>
+        <p>파일이 있어도 재생되지 않으면 다른 MP4 영상으로 바꿔보세요.<br>영상이 없어도 아래 버튼으로 연습할 수 있어요.</p>
+      </div>
+      <p id="loading" role="status">영상을 불러오고 있어요.</p>
+      <button id="play" type="button" hidden>영상 보기</button>
+    </section>
+
+    <section id="question" aria-labelledby="questionTitle">
+      <h2 id="questionTitle">어떻게 하면 좋을까요?</h2>
+      <div class="choices">
+        <button id="choiceA" type="button"><span class="letter">A</span>모른 척하고 지나가요</button>
+        <button id="choiceB" type="button"><span class="letter">B</span>점장님께 알리고<br>바닥을 닦아요</button>
+      </div>
+    </section>
+    <p id="feedback" role="status" aria-live="polite" aria-atomic="true" tabindex="-1"></p>
+    <button id="restart" type="button" hidden>다시 연습하기</button>
+    <noscript><p class="notice">퀴즈를 사용하려면 브라우저 설정에서 JavaScript를 허용해주세요.</p></noscript>
+  </main>
+  <script>
+    'use strict';
+    const $ = id => document.getElementById(id);
+    let video;
+    let solved = false;
+    let loadTimer;
+
+    // 각 단계마다 새 영상 요소를 사용해 이전 영상의 늦은 오류를 무시해요.
+    function loadVideo(solution) {
+      clearTimeout(loadTimer);
+      if (video) {
+        video.pause();
+        video.removeAttribute('src');
+        video.load();
+      }
+      const current = document.createElement('video');
+      video = current;
+      current.controls = true;
+      current.autoplay = true;
+      current.muted = true;
+      current.defaultMuted = true;
+      current.loop = !solution;
+      current.playsInline = true;
+      current.preload = 'auto';
+      current.setAttribute('aria-label', solution ? '해결 상황 영상' : '문제 상황 영상');
+      $('videoHost').replaceChildren(current);
+      $('videoError').hidden = true;
+      $('play').hidden = true;
+      $('play').textContent = '영상 보기';
+      $('loading').hidden = false;
+
+      function showError() {
+        if (video !== current) return;
+        clearTimeout(loadTimer);
+        current.hidden = true;
+        $('loading').hidden = true;
+        $('videoError').hidden = false;
+        $('play').hidden = false;
+        $('play').textContent = '영상 다시 불러오기';
+      }
+      current.addEventListener('error', showError);
+      current.addEventListener('loadeddata', () => {
+        if (video !== current) return;
+        clearTimeout(loadTimer);
+        current.hidden = false;
+        $('loading').hidden = true;
+        $('videoError').hidden = true;
+        $('play').textContent = '영상 보기';
+      });
+      current.addEventListener('playing', () => {
+        if (video !== current) return;
+        clearTimeout(loadTimer);
+        current.hidden = false;
+        $('loading').hidden = true;
+        $('videoError').hidden = true;
+        $('play').hidden = true;
+      });
+      loadTimer = setTimeout(showError, 12000);
+      current.src = solution ? './video2.mp4' : './video1.mp4';
+      current.load();
+      tryPlay(current);
+    }
+
+    async function tryPlay(current) {
+      try {
+        await current.play();
+      } catch (error) {
+        if (video !== current || error.name === 'AbortError') return;
+        if (error.name === 'NotAllowedError') {
+          clearTimeout(loadTimer);
+          $('loading').hidden = true;
+        }
+        $('play').hidden = false;
+      }
+    }
+
+    $('play').addEventListener('click', () => {
+      if (!$('videoError').hidden) loadVideo(solved);
+      else tryPlay(video);
+    });
+    $('choiceA').addEventListener('click', () => {
+      if (solved) return;
+      $('feedback').className = 'retry';
+      $('feedback').textContent = '바닥이 미끄러워 다칠 수 있어요. 다시 골라볼까요?';
+    });
+    $('choiceB').addEventListener('click', () => {
+      if (solved) return;
+      solved = true;
+      $('question').hidden = true;
+      $('restart').hidden = false;
+      $('guide').textContent = '해결 영상을 보고, 안전한 행동을 기억해요.';
+      $('feedback').className = 'success';
+      $('feedback').textContent = '잘했어요! 먼저 알리고, 안전하게 정리해요.';
+      loadVideo(true);
+      $('feedback').focus({ preventScroll: true });
+    });
+    $('restart').addEventListener('click', () => {
+      solved = false;
+      $('question').hidden = false;
+      $('restart').hidden = true;
+      $('feedback').textContent = '';
+      $('feedback').className = '';
+      $('guide').textContent = '영상을 보고, 어떻게 행동하면 좋을지 골라보세요.';
+      loadVideo(false);
+      $('title').focus();
+    });
+    loadVideo(false);
+  </script>
+</body>
+</html>
